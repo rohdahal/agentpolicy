@@ -24,9 +24,24 @@ def test_conflicting_tool_policy_rejected():
         AgentPolicy(allowed_tools=["search_docs"], blocked_tools=["search_docs"])
 
 
+def test_string_tool_allowlist_rejected():
+    with pytest.raises(InvalidPolicy):
+        AgentPolicy.from_dict({"tools": {"allow": "search_docs"}})
+
+
+def test_non_string_tool_entry_rejected():
+    with pytest.raises(InvalidPolicy):
+        AgentPolicy.from_dict({"tools": {"allow": ["search_docs", 123]}})
+
+
 def test_conflicting_domain_policy_rejected():
     with pytest.raises(InvalidPolicy):
         AgentPolicy(allowed_domains=["docs.python.org"], blocked_domains=["docs.python.org"])
+
+
+def test_string_domain_blocklist_rejected():
+    with pytest.raises(InvalidPolicy):
+        AgentPolicy.from_dict({"network": {"block": "twitter.com"}})
 
 
 def test_tool_allowlist():
@@ -151,6 +166,11 @@ def test_from_dict_rejects_invalid_approval_section():
         AgentPolicy.from_dict({"approval": {"require_for": "send_email"}})
 
 
+def test_from_dict_rejects_non_mapping_approval_rule():
+    with pytest.raises(InvalidPolicy):
+        AgentPolicy.from_dict({"approval": {"require_for": ["send_email"]}})
+
+
 def test_guard_tool_decorator():
     policy = AgentPolicy(allowed_tools=["read_file"])
     with policy.session() as session:
@@ -191,6 +211,26 @@ def test_report_has_policy_hits():
     report = session.report()
     assert report["policy_hits"]["denied_domains"] == ["twitter.com"]
     assert report["policy_hits"]["approval_required"] == ["send_email"]
+
+
+def test_cost_summary_separates_allowed_and_attempted_cost():
+    policy = AgentPolicy(
+        blocked_domains=["twitter.com"],
+        approval_rules=[{"cost_gt": 1.0}],
+    )
+    with policy.session() as session:
+        session.check_tool("search_docs", cost=0.2)
+        with pytest.raises(PolicyDenied):
+            session.check_http("https://twitter.com", cost=0.4)
+        with pytest.raises(ApprovalRequired):
+            session.check_cost(2.0, source="llm")
+
+    report = session.report()
+    assert report["spent"] == 0.2
+    assert report["cost_summary"]["by_action_type"]["tool"] == 0.2
+    assert report["cost_summary"]["attempted_by_action_type"]["tool"] == 0.2
+    assert report["cost_summary"]["attempted_by_action_type"]["http"] == 0.4
+    assert report["cost_summary"]["attempted_by_action_type"]["cost"] == 2.0
 
 
 def test_evaluate_does_not_mutate_spend_or_decisions():

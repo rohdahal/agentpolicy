@@ -1,6 +1,6 @@
 """AgentPolicy - runtime policy enforcement for AI agent sessions."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .exceptions import AgentPolicyError, ApprovalRequired, InvalidPolicy, PolicyDenied
 from .policy import AgentPolicy, parse_money

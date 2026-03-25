@@ -283,13 +283,19 @@ class PolicySession:
         denied_domains: list[str] = []
         approval_actions: list[str] = []
         cost_by_action_type: dict[str, float] = {}
+        attempted_cost_by_action_type: dict[str, float] = {}
 
         for decision in self._decisions:
             action_type = decision.action.action_type.value
             by_action_type[action_type] = by_action_type.get(action_type, 0) + 1
-            cost_by_action_type[action_type] = (
-                cost_by_action_type.get(action_type, 0.0) + decision.action.cost
+            attempted_cost_by_action_type[action_type] = (
+                attempted_cost_by_action_type.get(action_type, 0.0) + decision.action.cost
             )
+
+            if decision.decision_type == DecisionType.ALLOW:
+                cost_by_action_type[action_type] = (
+                    cost_by_action_type.get(action_type, 0.0) + decision.action.cost
+                )
 
             if decision.decision_type == DecisionType.DENY:
                 if decision.action.tool_name is not None:
@@ -319,6 +325,10 @@ class PolicySession:
             "cost_summary": {
                 "by_action_type": {
                     key: round(value, 6) for key, value in cost_by_action_type.items()
+                },
+                "attempted_by_action_type": {
+                    key: round(value, 6)
+                    for key, value in attempted_cost_by_action_type.items()
                 },
             },
             "policy_hits": {

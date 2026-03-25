@@ -31,10 +31,21 @@ def parse_money(value: str | float | int) -> float:
     raise InvalidPolicy(f"Invalid money value: {value!r}")
 
 
-def _normalize_names(values: Optional[Iterable[str]]) -> Optional[set[str]]:
+def _normalize_names(values: Optional[Iterable[str]], field_name: str) -> Optional[set[str]]:
     if values is None:
         return None
-    normalized = {value.strip() for value in values if value and value.strip()}
+    if isinstance(values, str):
+        raise InvalidPolicy(f"Policy field {field_name!r} must be a list of strings")
+    if not isinstance(values, Iterable):
+        raise InvalidPolicy(f"Policy field {field_name!r} must be a list of strings")
+
+    normalized: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            raise InvalidPolicy(f"Policy field {field_name!r} must contain only strings")
+        cleaned = value.strip()
+        if cleaned:
+            normalized.add(cleaned)
     return normalized or set()
 
 
@@ -60,11 +71,17 @@ class AgentPolicy:
         approval_rules: Optional[list[dict[str, Any]]] = None,
     ):
         self._budget = parse_money(budget)
-        self._allowed_tools = _normalize_names(allowed_tools)
-        self._blocked_tools = _normalize_names(blocked_tools)
-        self._allowed_domains = _normalize_names(allowed_domains)
-        self._blocked_domains = _normalize_names(blocked_domains)
+        self._allowed_tools = _normalize_names(allowed_tools, "tools.allow")
+        self._blocked_tools = _normalize_names(blocked_tools, "tools.block")
+        self._allowed_domains = _normalize_names(allowed_domains, "network.allow")
+        self._blocked_domains = _normalize_names(blocked_domains, "network.block")
         self._approval_rules = list(approval_rules or [])
+
+        for index, rule in enumerate(self._approval_rules, start=1):
+            if not isinstance(rule, dict):
+                raise InvalidPolicy(
+                    f"Policy section 'approval.require_for' item #{index} must be a mapping"
+                )
 
         if (
             self._allowed_tools is not None
