@@ -1,0 +1,22 @@
+budget:
+  max_spend: 5.00
+
+tools:
+  allow:
+    - search_docs
+    - read_file
+    - send_email
+  block:
+    - delete_prod_db
+
+network:
+  allow:
+    - docs.python.org
+    - api.openai.com
+  block:
+    - twitter.com
+
+approval:
+  require_for:
+    - tool: send_email
+    - cost_gt: 1.00
